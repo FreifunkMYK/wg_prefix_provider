@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
+#include <poll.h>
 
 #include "wireguard.h"
 #include "prefix_table.h"
@@ -427,6 +428,9 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	struct pollfd pollfds[1];
+	pollfds[0].fd = sock;
+	pollfds[0].events = POLLIN;
 
 	signal(SIGTERM, signal_handler);
 
@@ -435,6 +439,16 @@ int main(int argc, char **argv) {
 	while( run ) {
 		struct sockaddr_in6 addr;
 		unsigned int addr_len = sizeof( addr );
+		int rc = poll(pollfds, 1, 100);
+		if( rc < 0 ) {
+			perror("poll");
+			run = false;
+			break;
+		}
+		if( rc == 0 )
+			continue;
+		if( ! pollfds[0].revents & POLLIN )
+			continue;
 		int fd = accept( sock, (struct sockaddr *)&addr, &addr_len );
 		if( fd == -1 ) {
 			perror("accept");
